@@ -1,81 +1,45 @@
-name: Thesis SAST (3 apps)
+name: Thesis SAST (Nightly + AI)
 
 on:
-  push:
-  pull_request:
+  schedule:
+    - cron: "0 2 * * *"   # 02:00 UTC every day
+  workflow_dispatch:       # allow manual run
 
 jobs:
-  scan:
+  scan-ai:
     runs-on: ubuntu-latest
-    env:
-      # Toggle AI (slower when true). Start with false for speed.
-      ENABLE_AI: "false"
-      AI_THRESHOLD: "0.56"
-      AI_PER_FILE: "20"
-      AI_TOTAL: "250"
+    timeout-minutes: 60
+
     steps:
-      - name: Checkout this repo
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
-
-      - name: Install AI deps (only if ENABLE_AI=true)
-        if: env.ENABLE_AI == 'true'
-        run: python -m pip install torch transformers scikit-learn
-
-      - name: Clone test apps (shallow)
+      - name: Install dependencies (incl. transformers/torch)
         run: |
-          git clone --depth 1 https://github.com/digininja/DVWA.git
-          git clone --depth 1 https://github.com/adeyosemanputra/pygoat.git
-          git clone --depth 1 https://github.com/juice-shop/juice-shop.git
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt || true
+          # Ensure AI deps are present even if not in requirements.txt
+          pip install "transformers>=4.41" "tokenizers" "huggingface-hub" "torch" "tqdm" || true
 
-      - name: Scan DVWA (PHP)
+      - name: Run SAST scanner with AI re-ranking
+        # limit AI work to keep runtime predictable
         run: |
-          python thesis_sast_scannerr.py DVWA \
-            --ext ".php .js .html" \
-            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
-            --html dvwa_report.html --json dvwa_report.json
+          python thesis_sast_scannerr.py . \
+            --ext .py .php .js \
+            --ai --ai-threshold 0.60 --ai-per-file 10 --ai-total 200 \
+            --html report_ai.html \
+            --json report_ai.json
 
-      - name: Scan PyGoat (Python)
-        run: |
-          python thesis_sast_scannerr.py pygoat \
-            --ext ".py .js .html" \
-            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file 15 --ai-total 200") \
-            --html pygoat_report.html --json pygoat_report.json
-
-      - name: Scan Juice Shop (JS/TS)
-        run: |
-          python thesis_sast_scannerr.py juice-shop \
-            --ext ".js .ts .json .html" \
-            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
-            --html juiceshop_report.html --json juiceshop_report.json
-
-      - name: Upload reports
+      - name: Upload AI reports
         uses: actions/upload-artifact@v4
         with:
-          name: thesis-sast-reports
+          name: sast-ai-reports
           path: |
-            dvwa_report.html
-            dvwa_report.json
-            pygoat_report.html
-            pygoat_report.json
-            juiceshop_report.html
-            juiceshop_report.json
-
-      # Optional gate: fail the build if any High severity is found.
-      - name: Fail if High severity present
-        shell: bash
-        run: |
-          set -e
-          TOTAL=$(grep -ho '"severity": *"High"' *.json | wc -l || true)
-          echo "High severity findings across all scans: $TOTAL"
-          if [ "$TOTAL" -gt 0 ]; then
-            echo "::warning ::High severity findings detected ($TOTAL). (You can keep this as warning or 'exit 1' to fail.)"
-            # exit 1
-          fi
+            report_ai.html
+            report_ai.json
