@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 30
     env:
       # Toggle AI (optional). Keep false for speed; true uses CodeBERT re-ranking.
-      ENABLE_AI: "false"
+      ENABLE_AI: "True"
       AI_THRESHOLD: "0.60"
       AI_PER_FILE: "10"
       AI_TOTAL: "200"
@@ -21,15 +21,21 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
+  uses: actions/setup-python@v5
+  with:
+    python-version: "3.11"
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-     
+      - name: Install dependencies (core)
+        run: |
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            # minimal deps if you don't ship a requirements.txt
+            pip install --quiet reportlab beautifulsoup4 html5lib tqdm
+          fi
 
       - name: Install AI deps (only when ENABLE_AI=true)
         if: env.ENABLE_AI == 'true'
