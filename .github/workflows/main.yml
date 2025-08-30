@@ -45,7 +45,7 @@ jobs:
 
       - name: Run SAST scanner on repo (HTML + JSON)
         run: |
-          python thesis_sast_scanner1.py . \
+          python thesis_sast_scannerr.py . \
             --ext .py .php .js .ts .html .json \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
             --html repo_report.html \
