@@ -51,19 +51,4 @@ jobs:
             repo_report.html
             repo_report.json
 
-      # Optional policy gate: warn or fail the workflow based on High severity count
-      - name: Gate: fail if High severity present
-        shell: bash
-        run: |
-          set -e
-          if [ ! -f repo_report.json ]; then
-            echo "::warning ::No JSON report found."
-            exit 0
-          fi
-          TOTAL=$(grep -ho '"severity": *"High"' repo_report.json | wc -l || true)
-          echo "High severity findings: $TOTAL"
-          if [ "$TOTAL" -gt 0 ]; then
-            # Choose one behavior:
-            echo "::warning ::High severity findings detected ($TOTAL)."
-            # exit 1   # <- uncomment to make the job fail the pipeline intentionally
-          fi
+     
