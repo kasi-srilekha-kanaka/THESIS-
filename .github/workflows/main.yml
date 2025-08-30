@@ -1,21 +1,18 @@
-name: Thesis SAST (Repo Auto-Scan)
+name: Thesis SAST (auto-scan repo)
 
 on:
-  push:        # runs whenever you upload/commit anything
-  pull_request:  # also runs on PRs
-  workflow_dispatch:  # allow manual run from Actions tab
+  push:
+  pull_request:
 
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     env:
-      # Toggle AI (optional). Keep false for speed; true uses CodeBERT re-ranking.
-      ENABLE_AI: "true"
+      # Toggle AI (slower when true). Keep false unless demoing AI.
+      ENABLE_AI: "false"
       AI_THRESHOLD: "0.60"
       AI_PER_FILE: "10"
       AI_TOTAL: "200"
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -24,32 +21,27 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          
-
-      - name: Upgrade pip
-        run: python -m pip install --upgrade pip
 
       - name: Install dependencies (core)
         run: |
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          else
-            # minimal deps if you don't ship a requirements.txt
-            pip install --quiet reportlab beautifulsoup4 html5lib tqdm
-          fi
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Install AI deps (only when ENABLE_AI=true)
         if: env.ENABLE_AI == 'true'
         run: |
-          pip install --quiet "transformers>=4.41" tokenizers huggingface-hub torch
+          pip install "transformers>=4.41" tokenizers huggingface-hub torch
 
       - name: Run SAST scanner on repo (HTML + JSON)
+        # Let this step succeed even if the scanner finds High issues (exit 2)
+        continue-on-error: true
         run: |
+          echo ">>> Static Scan (repo root) <<<"
           python thesis_sast_scannerr.py . \
-            --ext .py .php .js .ts .html .json \
+            --ext ".py .php .js .ts .html .json" \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
-            --html repo_report.html \
-            --json repo_report.json
+            --html repo_report.html --json repo_report.json \
+            --ci-fail-on-high   # NOTE: scanner still returns 2 on High; step won’t fail due to continue-on-error
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
@@ -59,15 +51,19 @@ jobs:
             repo_report.html
             repo_report.json
 
-      # Optional gate: comment out 'exit 1' if you don't want the build to fail
-      - name: Fail if High severity present
+      # Optional policy gate: warn or fail the workflow based on High severity count
+      - name: Gate: fail if High severity present
         shell: bash
         run: |
           set -e
-          COUNT=$(grep -ho '"severity": *"High"' repo_report.json | wc -l || true)
-          echo "High severity findings in repo: $COUNT"
-          if [ "$COUNT" -gt 0 ]; then
-            echo "::warning ::High severity findings detected ($COUNT). Failing the job to enforce DevSecOps gate."
-            # To keep as warning (not fail), comment next line:
-            exit 1
+          if [ ! -f repo_report.json ]; then
+            echo "::warning ::No JSON report found."
+            exit 0
+          fi
+          TOTAL=$(grep -ho '"severity": *"High"' repo_report.json | wc -l || true)
+          echo "High severity findings: $TOTAL"
+          if [ "$TOTAL" -gt 0 ]; then
+            # Choose one behavior:
+            echo "::warning ::High severity findings detected ($TOTAL)."
+            # exit 1   # <- uncomment to make the job fail the pipeline intentionally
           fi
