@@ -1,4 +1,41 @@
-- name: Scan DVWA (PHP)
+name: Thesis SAST (3 apps)
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    env:
+      # Toggle AI (slower when true). Start with false for speed.
+      ENABLE_AI: "false"
+      AI_THRESHOLD: "0.56"
+      AI_PER_FILE: "20"
+      AI_TOTAL: "250"
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install AI deps (only if ENABLE_AI=true)
+        if: env.ENABLE_AI == 'true'
+        run: python -m pip install torch transformers scikit-learn
+
+      - name: Clone test apps (shallow)
+        run: |
+          git clone --depth 1 https://github.com/digininja/DVWA.git
+          git clone --depth 1 https://github.com/adeyosemanputra/pygoat.git
+          git clone --depth 1 https://github.com/juice-shop/juice-shop.git
+
+      - name: Scan DVWA (PHP)
         run: |
           python thesis_sast_scannerr.py DVWA \
             --ext ".php .js .html" \
