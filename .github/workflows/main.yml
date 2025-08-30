@@ -1,45 +1,73 @@
-name: Thesis SAST (Nightly + AI)
+name: Thesis SAST (Repo Auto-Scan)
 
 on:
-  schedule:
-    - cron: "0 2 * * *"   # 02:00 UTC every day
-  workflow_dispatch:       # allow manual run
+  push:        # runs whenever you upload/commit anything
+  pull_request:  # also runs on PRs
+  workflow_dispatch:  # allow manual run from Actions tab
 
 jobs:
-  scan-ai:
+  scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
+    env:
+      # Toggle AI (optional). Keep false for speed; true uses CodeBERT re-ranking.
+      ENABLE_AI: "false"
+      AI_THRESHOLD: "0.60"
+      AI_PER_FILE: "10"
+      AI_TOTAL: "200"
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies (incl. transformers/torch)
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt || true
-          # Ensure AI deps are present even if not in requirements.txt
-          pip install "transformers>=4.41" "tokenizers" "huggingface-hub" "torch" "tqdm" || true
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
 
-      - name: Run SAST scanner with AI re-ranking
-        # limit AI work to keep runtime predictable
+      - name: Install dependencies (core)
         run: |
-          python thesis_sast_scannerr.py . \
-            --ext .py .php .js \
-            --ai --ai-threshold 0.60 --ai-per-file 10 --ai-total 200 \
-            --html report_ai.html \
-            --json report_ai.json
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            # minimal deps if you don't ship a requirements.txt
+            pip install --quiet reportlab beautifulsoup4 html5lib tqdm
+          fi
 
-      - name: Upload AI reports
+      - name: Install AI deps (only when ENABLE_AI=true)
+        if: env.ENABLE_AI == 'true'
+        run: |
+          pip install --quiet "transformers>=4.41" tokenizers huggingface-hub torch
+
+      - name: Run SAST scanner on repo (HTML + JSON)
+        run: |
+          python thesis_sast_scanner1.py . \
+            --ext .py .php .js .ts .html .json \
+            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
+            --html repo_report.html \
+            --json repo_report.json
+
+      - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
-          name: sast-ai-reports
+          name: repo-sast-reports
           path: |
-            report_ai.html
-            report_ai.json
+            repo_report.html
+            repo_report.json
+
+      # Optional gate: comment out 'exit 1' if you don't want the build to fail
+      - name: Fail if High severity present
+        shell: bash
+        run: |
+          set -e
+          COUNT=$(grep -ho '"severity": *"High"' repo_report.json | wc -l || true)
+          echo "High severity findings in repo: $COUNT"
+          if [ "$COUNT" -gt 0 ]; then
+            echo "::warning ::High severity findings detected ($COUNT). Failing the job to enforce DevSecOps gate."
+            # To keep as warning (not fail), comment next line:
+            exit 1
+          fi
