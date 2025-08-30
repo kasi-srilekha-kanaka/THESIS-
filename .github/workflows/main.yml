@@ -1,0 +1,44 @@
+- name: Scan DVWA (PHP)
+        run: |
+          python thesis_sast_scanner1.py DVWA \
+            --ext ".php .js .html" \
+            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
+            --html dvwa_report.html --json dvwa_report.json
+
+      - name: Scan PyGoat (Python)
+        run: |
+          python thesis_sast_scanner1.py pygoat \
+            --ext ".py .js .html" \
+            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file 15 --ai-total 200") \
+            --html pygoat_report.html --json pygoat_report.json
+
+      - name: Scan Juice Shop (JS/TS)
+        run: |
+          python thesis_sast_scanner1.py juice-shop \
+            --ext ".js .ts .json .html" \
+            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
+            --html juiceshop_report.html --json juiceshop_report.json
+
+      - name: Upload reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: thesis-sast-reports
+          path: |
+            dvwa_report.html
+            dvwa_report.json
+            pygoat_report.html
+            pygoat_report.json
+            juiceshop_report.html
+            juiceshop_report.json
+
+      # Optional gate: fail the build if any High severity is found.
+      - name: Fail if High severity present
+        shell: bash
+        run: |
+          set -e
+          TOTAL=$(grep -ho '"severity": *"High"' *.json | wc -l || true)
+          echo "High severity findings across all scans: $TOTAL"
+          if [ "$TOTAL" -gt 0 ]; then
+            echo "::warning ::High severity findings detected ($TOTAL). (You can keep this as warning or 'exit 1' to fail.)"
+            # exit 1
+          fi
