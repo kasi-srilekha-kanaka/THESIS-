@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 30
     env:
       # Toggle AI (optional). Keep false for speed; true uses CodeBERT re-ranking.
-      ENABLE_AI: "True"
+      ENABLE_AI: "true"
       AI_THRESHOLD: "0.60"
       AI_PER_FILE: "10"
       AI_TOTAL: "200"
@@ -21,9 +21,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-  uses: actions/setup-python@v5
-  with:
-    python-version: "3.11"
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          
 
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
@@ -44,7 +45,7 @@ jobs:
 
       - name: Run SAST scanner on repo (HTML + JSON)
         run: |
-          python thesis_sast_scannerr.py . \
+          python thesis_sast_scanner1.py . \
             --ext .py .php .js .ts .html .json \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
             --html repo_report.html \
