@@ -1,20 +1,20 @@
 - name: Scan DVWA (PHP)
         run: |
-          python thesis_sast_scanner1.py DVWA \
+          python thesis_sast_scannerr1.py DVWA \
             --ext ".php .js .html" \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
             --html dvwa_report.html --json dvwa_report.json
 
       - name: Scan PyGoat (Python)
         run: |
-          python thesis_sast_scanner1.py pygoat \
+          python thesis_sast_scannerr1.py pygoat \
             --ext ".py .js .html" \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file 15 --ai-total 200") \
             --html pygoat_report.html --json pygoat_report.json
 
       - name: Scan Juice Shop (JS/TS)
         run: |
-          python thesis_sast_scanner1.py juice-shop \
+          python thesis_sast_scannerr1.py juice-shop \
             --ext ".js .ts .json .html" \
             $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
             --html juiceshop_report.html --json juiceshop_report.json
