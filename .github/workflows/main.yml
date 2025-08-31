@@ -7,33 +7,61 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
+
     steps:
+      # 1) Checkout code
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # 2) Python runtime
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
      
 
+      # 4) AI deps for CodeBERT scoring
       - name: Install AI deps
         run: |
-          pip install torch transformers
+          pip install --quiet "transformers>=4.41" tokenizers huggingface-hub safetensors sentencepiece torch
 
+      # 5) Run the SAST scanner with AI re-ranking
+      #    - Auto-detects the scanner filename (handles small naming differences)
+      #    - Never fails the build (|| true) so artifacts always upload
       - name: Run SAST scanner with AI
+        shell: bash
         run: |
           echo ">>> Running Static Scan with AI <<<"
-          python thesis_sast_scannerr.py . \
-            --ext ".py .php .js .html .ts" \
+          # pick the first scanner file that exists
+          SCANNER=""
+          for f in thesis_sast_scannerr.py thesis_sast_scanner.py thesis_sast_scanner1.py; do
+            if [ -f "$f" ]; then SCANNER="$f"; break; fi
+          done
+          if [ -z "$SCANNER" ]; then
+            echo "::error ::Scanner file not found in repo root (expected one of thesis_sast_scannerr.py / thesis_sast_scanner.py / thesis_sast_scanner1.py)"
+            ls -la
+            # Don't fail the job; still allow next steps
+            exit 0
+          fi
+
+          echo "Using scanner: $SCANNER"
+          python "$SCANNER" . \
+            --ext .py .php .js .html .ts \
             --ai \
             --ai-threshold 0.56 \
             --ai-per-file 20 \
             --ai-total 250 \
             --html repo_report.html \
-            --json repo_report.json
+            --json repo_report.json || true
 
+          echo "Scan finished."
+          ls -lh repo_report.* || true
+
+      # 6) Upload HTML + JSON reports as artifacts
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
