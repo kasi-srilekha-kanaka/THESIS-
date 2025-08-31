@@ -25,7 +25,7 @@ jobs:
       - name: Run SAST scanner with AI
         run: |
           echo ">>> Running Static Scan with AI <<<"
-          python thesis_sast_scanner.py . \
+          python thesis_sast_scannerr.py . \
             --ext ".py .php .js .html .ts" \
             --ai \
             --ai-threshold 0.56 \
