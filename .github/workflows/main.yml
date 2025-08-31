@@ -1,4 +1,4 @@
-name: Thesis SAST (auto-scan repo)
+name: Thesis SAST (AI enabled)
 
 on:
   push:
@@ -7,14 +7,8 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    env:
-      # Toggle AI (slower when true). Keep false unless demoing AI.
-      ENABLE_AI: "true"
-      AI_THRESHOLD: "0.60"
-      AI_PER_FILE: "10"
-      AI_TOTAL: "200"
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -22,30 +16,28 @@ jobs:
         with:
           python-version: "3.11"
 
-    
+     
 
-      - name: Install AI deps (only when ENABLE_AI=true)
-        if: env.ENABLE_AI == 'true'
+      - name: Install AI deps
         run: |
-          pip install "transformers>=4.41" tokenizers huggingface-hub torch
+          pip install torch transformers
 
-      - name: Run SAST scanner on repo (HTML + JSON)
-        # Let this step succeed even if the scanner finds High issues (exit 2)
-        continue-on-error: true
+      - name: Run SAST scanner with AI
         run: |
-          echo ">>> Static Scan (repo root) <<<"
-          python thesis_sast_scannerr.py . \
-            --ext ".py .php .js .ts .html .json" \
-            $([ "${ENABLE_AI}" = "true" ] && echo "--ai --ai-threshold ${AI_THRESHOLD} --ai-per-file ${AI_PER_FILE} --ai-total ${AI_TOTAL}") \
-            --html repo_report.html --json repo_report.json \
-            --ci-fail-on-high   # NOTE: scanner still returns 2 on High; step won’t fail due to continue-on-error
+          echo ">>> Running Static Scan with AI <<<"
+          python thesis_sast_scanner.py . \
+            --ext ".py .php .js .html .ts" \
+            --ai \
+            --ai-threshold 0.56 \
+            --ai-per-file 20 \
+            --ai-total 250 \
+            --html repo_report.html \
+            --json repo_report.json
 
       - name: Upload reports
         uses: actions/upload-artifact@v4
         with:
-          name: repo-sast-reports
+          name: sast-reports
           path: |
             repo_report.html
             repo_report.json
-
-     
